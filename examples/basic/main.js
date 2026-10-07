@@ -219,3 +219,9 @@ frame();
 
 // 便于在控制台/自动化里检查
 window.__gifts = effects;
+
+// 深链：?effect=deer|path（也认 #deer / #path）。README 与落地页的「Live Demo」用它直接开播。
+const wanted = new URLSearchParams(location.search).get('effect')
+  || location.hash.replace(/^#/, '');
+if (wanted === 'deer' || wanted === 'giftDeer') play('giftDeer');
+else if (wanted === 'path' || wanted === 'giftPath') play('giftPath');

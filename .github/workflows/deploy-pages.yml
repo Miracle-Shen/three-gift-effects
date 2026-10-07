@@ -1,0 +1,70 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 站点不需要构建步骤：库是纯 ESM 源码，demo 直接用 import map 引 CDN 上的 three。
+      # 这里只做一次目录组装，且刻意保持 demo 与仓库里同级的相对位置 ——
+      # examples/basic/main.js 里写的是 `../../src/index.js`，必须仍是「两级深」才能解析对：
+      #   /                      <- site/index.html  落地页
+      #   /examples/basic/       <- 在线 demo（README 的 Live Demo 指向这里）
+      #   /src/                  <- `../../src/index.js` 从 /examples/basic/ 往上两级正好是这里
+      #   /docs/                 <- 预览图
+      - name: Assemble site
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir -p _site/src _site/docs _site/examples/basic
+          cp -R site/.           _site/
+          cp -R examples/basic/. _site/examples/basic/
+          cp -R src/.            _site/src/
+          cp -R docs/.           _site/docs/
+          touch _site/.nojekyll
+          echo "--- site tree ---"
+          find _site -type f | sort
+
+      # 组装完立刻自检：demo 依赖的两条相对路径必须能解析，否则线上会白屏。
+      - name: Sanity-check relative paths
+        run: |
+          set -euo pipefail
+          for f in _site/index.html _site/examples/basic/index.html _site/examples/basic/main.js _site/src/index.js; do
+            test -f "$f" || { echo "missing: $f"; exit 1; }
+          done
+          grep -q "from '../../src/index.js'" _site/examples/basic/main.js \
+            || { echo "demo 的源码相对路径被改动了，请同步更新预期路径"; exit 1; }
+          echo "paths OK"
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

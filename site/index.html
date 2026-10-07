@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>three-gift-effects · 可插拔 Three.js 礼物粒子特效</title>
+<meta name="description" content="一组「粒子从起点飞出来、聚成一个能认出来的形态」的可插拔演出特效。挂到任意 Three.js 场景就能用：你只注入锚点，其余全交给库。">
+<style>
+  :root{
+    --bg:#080b10; --bg2:#0d1219; --panel:#111823; --line:rgba(255,255,255,.09);
+    --fg:#eef3fa; --dim:#8e9cb2; --dim2:#66748c;
+    --gold:#ffb95e; --gold2:#ffe6b0; --glow:rgba(255,185,94,.28);
+    --maxw:1060px;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);overflow-x:hidden}
+  body{line-height:1.65}
+  a{color:var(--gold);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code,kbd,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+  /* 背景光晕 */
+  .aurora{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  .aurora i{position:absolute;display:block;border-radius:50%;filter:blur(90px);opacity:.5}
+  .aurora i:nth-child(1){width:52vw;height:52vw;left:-12vw;top:-16vw;background:radial-gradient(circle,rgba(255,150,40,.42),transparent 68%)}
+  .aurora i:nth-child(2){width:46vw;height:46vw;right:-10vw;top:4vw;background:radial-gradient(circle,rgba(70,120,255,.34),transparent 68%)}
+  .aurora i:nth-child(3){width:40vw;height:40vw;left:32vw;top:44vh;background:radial-gradient(circle,rgba(180,80,255,.20),transparent 70%)}
+
+  .wrap{position:relative;z-index:1;max-width:var(--maxw);margin:0 auto;padding:0 24px}
+
+  /* Hero */
+  header{padding:84px 0 40px;text-align:center}
+  .kicker{display:inline-block;font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--gold);border:1px solid rgba(255,185,94,.32);background:rgba(255,185,94,.08);
+    border-radius:999px;padding:5px 14px;margin-bottom:26px}
+  h1{margin:0 0 8px;font-size:clamp(30px,5.4vw,52px);line-height:1.14;letter-spacing:-.02em;
+    background:linear-gradient(180deg,#fff 20%,#ffd9a3 120%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{color:var(--dim);font-size:clamp(14px,1.9vw,17px);max-width:660px;margin:16px auto 0}
+  .lede b{color:var(--fg);font-weight:600}
+  .en{color:var(--dim2);font-size:13.5px;margin-top:10px;font-style:italic}
+
+  .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:32px 0 0}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border-radius:11px;
+    font-size:14.5px;font-weight:600;border:1px solid var(--line);color:var(--fg);
+    background:rgba(255,255,255,.05);transition:.18s}
+  .btn:hover{background:rgba(255,255,255,.12);text-decoration:none;transform:translateY(-1px)}
+  .btn.primary{background:linear-gradient(180deg,#ffcb7a,#f0952b);border-color:rgba(255,205,120,.6);
+    color:#2b1a04;box-shadow:0 10px 30px var(--glow)}
+  .btn.primary:hover{background:linear-gradient(180deg,#ffd894,#ffa53a)}
+
+  /* 预览 */
+  .shots{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:56px 0 0}
+  @media(max-width:760px){.shots{grid-template-columns:1fr}}
+  .shot{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--panel);
+    transition:.2s;display:block;color:inherit}
+  .shot:hover{border-color:rgba(255,185,94,.45);transform:translateY(-3px);text-decoration:none;
+    box-shadow:0 18px 46px rgba(0,0,0,.55)}
+  .shot img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover}
+  .shot .meta{padding:15px 17px 17px}
+  .shot h3{margin:0 0 4px;font-size:15px}
+  .shot h3 span{color:var(--dim2);font-weight:400;font-size:12.5px;margin-left:7px}
+  .shot p{margin:0;color:var(--dim);font-size:13px}
+  .shot .go{margin-top:11px;font-size:12.5px;font-weight:600;color:var(--gold)}
+
+  /* 通用 section */
+  section{padding:74px 0 0}
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim2);
+    margin:0 0 6px;font-weight:600}
+  .h2sub{font-size:22px;font-weight:650;margin:0 0 22px;letter-spacing:-.01em}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:14px}
+  .card{border:1px solid var(--line);border-radius:13px;padding:18px 18px 16px;background:var(--panel)}
+  .card h4{margin:0 0 6px;font-size:14.5px;display:flex;align-items:center;gap:7px}
+  .card p{margin:0;color:var(--dim);font-size:13px}
+  .card .dot{width:6px;height:6px;border-radius:50%;background:var(--gold);flex:0 0 auto;
+    box-shadow:0 0 10px var(--gold)}
+
+  pre{background:#0a0f16;border:1px solid var(--line);border-radius:13px;padding:17px 19px;
+    overflow-x:auto;font-size:12.8px;line-height:1.75;color:#cfe0f2;margin:0}
+  pre .c{color:#5d6d84}
+  pre .k{color:#ffb95e}
+  pre .s{color:#9ddc8a}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim2);font-weight:600;font-size:12px;letter-spacing:.05em;text-transform:uppercase}
+  td code{background:rgba(255,255,255,.07);border-radius:5px;padding:2px 6px;font-size:12.2px;color:var(--gold2)}
+
+  .note{border-left:3px solid var(--gold);background:rgba(255,185,94,.07);border-radius:0 11px 11px 0;
+    padding:14px 18px;color:#e3cfae;font-size:13.5px;margin-top:16px}
+  .note b{color:#ffdca8}
+
+  footer{margin-top:80px;padding:30px 0 54px;border-top:1px solid var(--line);
+    color:var(--dim2);font-size:12.5px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .badges{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-top:26px}
+  .badges img{height:20px}
+</style>
+</head>
+<body>
+
+<div class="aurora"><i></i><i></i><i></i></div>
+
+<div class="wrap">
+
+  <header>
+    <div class="kicker">three.js · pluggable vfx</div>
+    <h1>three-gift-effects</h1>
+    <p class="lede">
+      一组「粒子从起点飞出来、<b>聚成一个能认出来的形态</b>」的演出型特效。
+      挂到任意 Three.js 场景就能用 —— <b>你只注入锚点，其余全交给库</b>。
+      不需要重建场景、不需要美术资产、不需要动 shader。
+    </p>
+    <p class="en">A drop-in particle VFX library for Three.js. You supply the anchors; it supplies the show.</p>
+
+    <div class="badges">
+      <a href="https://github.com/Miracle-Shen/three-gift-effects"><img src="https://img.shields.io/badge/GitHub-Source-black.svg?logo=github" alt="GitHub Source"></a>
+      <img src="https://img.shields.io/badge/three-%3E%3D0.160.0-black.svg" alt="three >=0.160.0">
+      <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="MIT"></a>
+      <img src="https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg" alt="Node >=18">
+    </div>
+
+    <div class="cta">
+      <a class="btn primary" href="./examples/basic/">▶&nbsp;&nbsp;打开在线 Demo</a>
+      <a class="btn" href="https://github.com/Miracle-Shen/three-gift-effects">⌘&nbsp;&nbsp;查看源码</a>
+    </div>
+  </header>
+
+  <div class="shots">
+    <a class="shot" href="./examples/basic/?effect=deer">
+      <img src="./docs/preview-deer.png" alt="粒子守护兽">
+      <div class="meta">
+        <h3>粒子守护兽 <span>G05 · 11.6s</span></h3>
+        <p>星光从四处飘来聚成一只半透明小鹿，沿台前巡行后散开。</p>
+        <div class="go">▶ 播放这个效果</div>
+      </div>
+    </a>
+    <a class="shot" href="./examples/basic/?effect=path">
+      <img src="./docs/preview-path.png" alt="一对一送礼路径">
+      <div class="meta">
+        <h3>一对一送礼路径 <span>G02 · 9.4s</span></h3>
+        <p>暖金飞萤沿 S 形曲线飞过房间，在歌手肩侧绕成光环、凝结徽章。</p>
+        <div class="go">▶ 播放这个效果</div>
+      </div>
+    </a>
+  </div>
+
+  <section>
+    <h2>Design Principle</h2>
+    <p class="h2sub">唯一的场景耦合点，是一个锚点对象</p>
+    <p style="color:var(--dim);font-size:14.5px;margin:0 0 20px;max-width:760px">
+      库<strong>不</strong>自己去 <code>root.getObjectByName(...)</code> —— 不同工程的命名千奇百怪，硬找必然静默失配。
+      所有定位量由宿主算好、运行时注入；偏移量、粒子预算、GLSL 全部由库自己持有。
+    </p>
+    <table>
+      <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>stage</code></td><td>Box3</td><td>表演区包围盒。只要 <code>max.y</code>（台面高度）和水平范围是对的即可</td></tr>
+        <tr><td><code>mic</code></td><td>Vector3</td><td>表演点。礼物终点、安全区都以它为基准推算</td></tr>
+        <tr><td><code>seats</code></td><td>Array&lt;{eye}&gt;</td><td>观众席视点。库会挑一个最靠镜头的当「送礼人」</td></tr>
+        <tr><td><code>layout</code></td><td>object</td><td>可选，覆盖 <code>GIFT_LAYOUT</code> 里的任意偏移量</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Quick Start</h2>
+    <p class="h2sub">四步挂上去</p>
+<pre><span class="k">import</span> * <span class="k">as</span> THREE <span class="k">from</span> <span class="s">'three'</span>;
+<span class="k">import</span> { createGiftEffects } <span class="k">from</span> <span class="s">'three-gift-effects'</span>;
+
+<span class="k">const</span> gifts = <span class="k">createGiftEffects</span>(scene, { coarse: <span class="k">false</span>, reduced: <span class="k">false</span> });
+
+<span class="c">// 1) 告诉它你的舞台在哪（唯一的场景耦合点）</span>
+gifts.<span class="k">setAnchors</span>({
+  stage: <span class="k">new</span> THREE.<span class="k">Box3</span>().<span class="k">setFromObject</span>(stageMesh),
+  mic:   <span class="k">new</span> THREE.<span class="k">Vector3</span>(1.0, 1.8, 0),
+  seats: seats.<span class="k">map</span>((s) => ({ eye: s.eye.<span class="k">clone</span>() })),
+});
+
+<span class="c">// 2) 播放</span>
+gifts.<span class="k">trigger</span>(<span class="s">'giftDeer'</span>);   <span class="c">// 或 'giftPath'</span>
+
+<span class="c">// 3) 每帧更新（传相机与画布像素高，用来换算 px/米）</span>
+<span class="k">function</span> <span class="k">frame</span>(dt) {
+  gifts.<span class="k">update</span>(dt, camera, renderer.domElement.height);
+  renderer.<span class="k">render</span>(scene, camera);
+}
+
+<span class="c">// 4) 卸载</span>
+gifts.<span class="k">dispose</span>();</pre>
+    <div class="note">
+      <b>three 是 peer dependency（≥0.160.0）。</b>库不替你安装、也不打包 three —— 你的工程用哪个版本，它就用哪个版本。
+      本仓库是源码分发，直接拷 <code>src/</code> 或走 submodule 即可。
+    </div>
+  </section>
+
+  <section>
+    <h2>Why it's pluggable</h2>
+    <p class="h2sub">四条硬约束</p>
+    <div class="grid">
+      <div class="card">
+        <h4><span class="dot"></span>零写死坐标</h4>
+        <p>demo 里拖动「移动舞台」会整体平移并<strong>重新注入锚点</strong>，效果照旧正确 —— 代码里没有任何绝对世界坐标。</p>
+      </div>
+      <div class="card">
+        <h4><span class="dot"></span>颜色全走 key</h4>
+        <p>色板通过 <code>GIFT_SKIN</code> 的 key 暴露，<code>applySkin()</code> 实时覆盖，不需要改 GLSL。写错 key 会被忽略而不是静默失效。</p>
+      </div>
+      <div class="card">
+        <h4><span class="dot"></span>三档粒子预算</h4>
+        <p>high / mid / low 覆盖高中低配；初始档位由 <code>coarse</code> / <code>reduced</code> 决定，运行时还能 <code>degrade()</code> 逐级降。</p>
+      </div>
+      <div class="card">
+        <h4><span class="dot"></span>可定格验收</h4>
+        <p><code>seek(kind, seconds)</code> 能停在任意时刻 —— 自动化验收可以逐帧截图，而不是只看首帧。</p>
+      </div>
+      <div class="card">
+        <h4><span class="dot"></span>深度是红线</h4>
+        <p>全部材质 <code>depthTest:true</code> + <code>depthWrite:false</code>，粒子被人物与家具正确遮挡；并对「面部 + 麦克风」安全区主动降亮。</p>
+      </div>
+      <div class="card">
+        <h4><span class="dot"></span>可继续扩效果</h4>
+        <p>新增效果只要实现同样的 <code>build</code> / <code>apply</code> 并登记进注册表，G04 / G07 / G09 / G12 / G15 都能按同一套路接。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Run locally</h2>
+    <p class="h2sub">把 demo 跑起来</p>
+<pre>git clone https://github.com/Miracle-Shen/three-gift-effects.git
+<span class="k">cd</span> three-gift-effects
+npm install          <span class="c"># 只装 three（peer dependency）</span>
+npm run demo         <span class="c"># → http://127.0.0.1:9100/</span></pre>
+    <div class="note">
+      本地 demo 是一个<strong>不依赖任何外部素材</strong>的最小场景（地面 + 舞台 + 歌手替身 + 两张桌子），
+      用来证明本库不认识任何具体场景。没装依赖时会自动回落到 unpkg CDN 上的 three。
+    </div>
+  </section>
+
+  <footer>
+    <span>three-gift-effects · MIT License</span>
+    <span>设计依据：《3D K 歌房 · 礼物粒子特效实现需求说明》v1.0</span>
+    <span><a href="https://github.com/Miracle-Shen/three-gift-effects">github.com/Miracle-Shen/three-gift-effects</a></span>
+  </footer>
+
+</div>
+</body>
+</html>
