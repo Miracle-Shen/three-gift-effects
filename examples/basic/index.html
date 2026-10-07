@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>three-gift-effects · demo</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:rgba(18,24,33,.86); --line:rgba(255,255,255,.10);
+    --fg:#e8edf5; --dim:#93a1b5; --accent:#ffc36b;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);overflow:hidden}
+  #app{position:fixed;inset:0}
+  canvas{display:block;width:100%;height:100%}
+
+  .hud{position:fixed;top:14px;left:14px;z-index:10;width:274px;background:var(--panel);
+    backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:14px;padding:14px 15px;
+    font-size:12.5px;line-height:1.55;box-shadow:0 10px 34px rgba(0,0,0,.45)}
+  .hud h1{margin:0 0 2px;font-size:13.5px;letter-spacing:.2px}
+  .hud .sub{color:var(--dim);font-size:11px;margin-bottom:11px}
+  .row{display:flex;align-items:center;gap:8px;margin:7px 0}
+  .row>label{color:var(--dim);flex:0 0 62px;font-size:11.5px}
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:9px 0 3px}
+  button{font:inherit;font-size:12px;color:var(--fg);background:rgba(255,255,255,.07);
+    border:1px solid var(--line);border-radius:9px;padding:8px 9px;cursor:pointer;transition:.15s}
+  button:hover{background:rgba(255,255,255,.14)}
+  button.on{background:rgba(255,195,107,.20);border-color:rgba(255,195,107,.55);color:#ffdca8}
+  input[type=range]{flex:1;accent-color:var(--accent);min-width:0}
+  select{flex:1;font:inherit;font-size:12px;color:var(--fg);background:rgba(255,255,255,.07);
+    border:1px solid var(--line);border-radius:8px;padding:5px 7px}
+  input[type=color]{width:34px;height:24px;padding:0;border:1px solid var(--line);
+    border-radius:6px;background:none;cursor:pointer}
+  .hint{color:var(--dim);font-size:11px;margin-top:11px;padding-top:9px;border-top:1px solid var(--line)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--dim)}
+  .mono b{color:var(--fg);font-weight:600}
+  .val{color:var(--dim);font-size:11px;flex:0 0 34px;text-align:right}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div class="hud">
+  <h1>three-gift-effects</h1>
+  <div class="sub">可插拔礼物粒子特效 · 独立 demo</div>
+
+  <div class="btns">
+    <button id="btn-deer" data-kind="giftDeer">✦ 粒子守护兽</button>
+    <button id="btn-path" data-kind="giftPath">❦ 送礼路径</button>
+  </div>
+
+  <div class="row">
+    <label for="seek">定格</label>
+    <input id="seek" type="range" min="0" max="1160" value="0" step="1">
+    <span class="val" id="seek-val">0.0s</span>
+  </div>
+
+  <div class="row">
+    <label for="tier">档位</label>
+    <select id="tier">
+      <option value="high">high · 高配</option>
+      <option value="mid">mid · 中配</option>
+      <option value="low">low · 低配</option>
+    </select>
+  </div>
+
+  <div class="row">
+    <label>换肤</label>
+    <input id="c-gold" type="color" value="#ff7811" title="主色 gift.path.core.color">
+    <input id="c-ivory" type="color" value="#ffe88c" title="亮色 gift.path.ring.color">
+    <input id="c-leaf" type="color" value="&#35;b3ff36" title="徽章 gift.badge.leaf.color">
+  </div>
+
+  <div class="row">
+    <label for="move">移动舞台</label>
+    <input id="move" type="range" min="-6" max="6" value="0" step="0.5">
+    <span class="val" id="move-val">0m</span>
+  </div>
+
+  <div class="mono" id="stats">—</div>
+
+  <div class="hint">
+    点按钮播放；拖动「定格」可任意暂停看形态（对应验收要求：任意一帧都能辨认形态）。
+    拖「移动舞台」会让这张桌子整体平移——证明锚点是运行时注入的，代码里没有写死坐标。
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="./main.js"></script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+{
+  "name": "three-gift-effects",
+  "version": "0.1.0",
+  "description": "可插拔的 Three.js 礼物粒子特效：粒子守护兽（驱动模型法）与一对一送礼路径（曲线飞行 + 终点结晶）。",
+  "type": "module",
+  "license": "MIT",
+  "main": "./src/index.js",
+  "module": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./effects/deer": "./src/effects/deer.js",
+    "./effects/path": "./src/effects/path.js",
+    "./config": "./src/config.js"
+  },
+  "files": [
+    "src",
+    "examples",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "keywords": [
+    "three",
+    "threejs",
+    "particles",
+    "vfx",
+    "gift",
+    "shader",
+    "webgl",
+    "k歌房"
+  ],
+  "peerDependencies": {
+    "three": ">=0.160.0"
+  },
+  "scripts": {
+    "demo": "node scripts/serve.mjs",
+    "demo:no-open": "node scripts/serve.mjs --no-open"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
