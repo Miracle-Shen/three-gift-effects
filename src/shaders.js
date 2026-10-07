@@ -138,18 +138,9 @@ export const BURST_VERTEX = COMMON + PATH_FUNCTION + `
   }
 `;
 
-export const RIBBON_VERTEX = PATH_FUNCTION + `
-  uniform float uTime,uTravel;varying vec2 vUv;
-  void main(){vUv=uv;float t=uv.x;vec3 p=path(t);float a=t*12.5663706-uTime*.8+position.z;
-    p+=vec3(cos(a),sin(a),cos(a)*.4)*(.045+position.z*.008);
-    vec4 mv=modelViewMatrix*vec4(p,1.);mv.xy+=normalize(vec2(.8,.4))*(uv.y-.5)*.033;gl_Position=projectionMatrix*mv;}
-`;
-
-export const RIBBON_FRAGMENT = `
-  uniform float uOpacity,uTravel,uArrival,uDissolve,uGlow;uniform vec3 uGold,uIvory;varying vec2 vUv;
-  void main(){float reveal=smoothstep(vUv.x-.012,vUv.x+.005,uTravel),edge=pow(1.-abs(vUv.y*2.-1.),1.5);
-    gl_FragColor=vec4(mix(uGold,uIvory,.65)*uGlow*2.5,edge*reveal*uOpacity*(1.-uDissolve)*mix(.62,.22,uArrival));}
-`;
+/* 注意：这里**没有**沿曲线扫出的 ribbon 光带。
+   它曾经把宿主后期链（UnrealBloom + MSAA composer）推成整屏纯黑，
+   详见 effects/path.js 里的说明与 README「已知问题」。 */
 
 const LEAF_DEFORM = `
   uniform float uTime,uFlap;

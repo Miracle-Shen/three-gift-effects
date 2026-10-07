@@ -14,24 +14,6 @@ import { smooth, v3 } from '../util.js';
  *   徽章 = 独立小模型在光环成形后淡入（不用粒子硬堆叶片，边缘会毛糙）
  */
 
-/** 沿曲线扫出的三条并排 ribbon：只做极淡的底光，主体观感交给离散光点。 */
-function ribbonGeometry() {
-  const p = [], uv = [], idx = [];
-  for (let line = 0; line < 3; line++) {
-    for (let i = 0; i <= 180; i++) {
-      const k = p.length / 3;
-      p.push(0, 0, line * 2.094, 0, 0, line * 2.094);
-      uv.push(i / 180, 0, i / 180, 1);
-      if (i < 180) idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);
-    }
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.setIndex(idx);
-  return g;
-}
-
 const TAKEOFF = .55;      // 起势结束
 const LAND = 4.55;        // 飞行结束
 const BLOOM = 5.4;        // 汇聚完成
@@ -42,7 +24,11 @@ export const PATH_EFFECT = {
   duration: GIFT_DURATIONS.giftPath,
 
   build({ group, u, conf, add, ctx }) {
-    add(ribbonGeometry(), shaders.RIBBON_VERTEX, shaders.RIBBON_FRAGMENT, 'mesh', group, u);
+    // 这里**故意没有**沿曲线扫出的 ribbon「光带」。
+    // 早先那三条 0.033 视空间的并排细线，在宿主的大远景里只有不到 1px，
+    // 肉眼看不到，却把宿主后期链（UnrealBloom + MSAA composer）推到了整屏全黑：
+    // 只要它参与绘制，宿主每一帧的输出都是纯黑（见 README「已知问题」）。
+    // 形态改由离散光点承担——这也更贴近需求文档 6.2「飞萤」的描述。
     add(createSeeds(conf.path), shaders.PATH_VERTEX, shaders.POINT_FRAGMENT, 'points', group, u);
     add(createSeeds(conf.burst, 576), shaders.BURST_VERTEX, shaders.POINT_FRAGMENT, 'points', group, u);
 

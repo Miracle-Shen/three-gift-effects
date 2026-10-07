@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DEMO = '/examples/basic/index.html';
+const DEMO_DIR = '/examples/basic/';
 const argv = process.argv.slice(2);
 
 const portIdx = argv.indexOf('--port');
@@ -54,7 +55,7 @@ async function hasLocalThree() {
   }
 }
 
-/** 把 demo 的 import map 换成可用来源。 */
+/** 把 demo 的 import map 换成可用来源，并把相对路径钉死在 demo 目录上。 */
 async function demoDocument() {
   let html = await fs.readFile(path.join(ROOT, DEMO), 'utf8');
   const local = await hasLocalThree();
@@ -63,6 +64,12 @@ async function demoDocument() {
     : { 'three': CDN + '/build/three.module.js', 'three/addons/': CDN + '/examples/jsm/' };
   html = html.replace(/(<script type="importmap">)[\s\S]*?(<\/script>)/,
     (_, open, close) => open + '\n' + JSON.stringify({ imports: map }, null, 2) + '\n' + close);
+
+  // demo 的入口是 `/`，若不声明 base，页内 `./main.js` 会被浏览器解析成 `/main.js`
+  // （404，页面只有 HUD、没有 canvas）。固定 base 后相对路径一律回到 demo 目录。
+  if (!/<base\s/i.test(html)) {
+    html = html.replace(/<head(\s[^>]*)?>/i, (m) => `${m}\n<base href="${DEMO_DIR}">`);
+  }
   return { html, local };
 }
 
@@ -82,7 +89,13 @@ const server = http.createServer(async (req, res) => {
 
     const file = path.join(ROOT, rel);
     if (!path.resolve(file).startsWith(ROOT)) { res.writeHead(403).end('Forbidden'); return; }
-    const body = await fs.readFile(file);
+    let body;
+    try {
+      body = await fs.readFile(file);
+    } catch {
+      // 兜底：早先直接访问过 `/main.js` 之类的相对路径，回退到 demo 目录里找。
+      body = await fs.readFile(path.join(ROOT, DEMO_DIR, rel));
+    }
     res.writeHead(200, {
       'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream',
       'Content-Length': body.length,
