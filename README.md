@@ -25,6 +25,19 @@
   <sub>两张都是 <code>examples/basic</code> 的实拍，不是渲染图：<code>npm run demo</code> 后点按钮 + 拖动「定格」即可复现。</sub>
 </div>
 
+## 守护鹿参考图校准（2026-10-08）
+
+本次只重做守护鹿的造型、粒子和月牙光弧，保留送礼路径及公共 API。
+
+- **连续体表**：`src/deer-model.js` 用平滑隐式并集与 Three.js MarchingCubes 生成一层外表面，不再渲染相交球体。颈部、头部、弯曲前腿和后腿连贯过渡，鹿角采用非对称弯曲分叉。
+- **分离光点**：带最小间距的确定性表面采样。暖金亮点用普通透明混合控制叠加亮度；独立低能量柔光层复用同一份粒子缓冲，不依赖宿主 Bloom。
+- **参考构图**：光弧从人物左上绕至鹿脚边，不再以鹿身为中心画整圆或地面双环。骨骼保持抬蹄姿势，带轻微呼吸和重心移动。
+- **预算**：high = 4,200 鹿身 + 2,000 光弧；mid = 3,000 + 1,400；low = 1,800 + 900。三档均为 3 次绘制（柔光、亮点、光弧），没有可见实体网格。柔光重复提交鹿身顶点，但不增加独立粒子数量。
+- **预览**：`npm run demo`；`/?effect=deer&time=3.1` 固定参考帧。拖动时间后保持暂停，用「暂停」复选框恢复。参数内可切换侧面、俯视和纯净背景。
+- **回归**：`npm test` 验证确定性采样、三维厚度、骨骼权重、缓冲复用、三档预算、重播、消散和资源释放。
+
+参考图是二维成图。本次对齐礼物的形态和粒子表现，不包含原图的木屋、人物与灯光资产，也不声称所有视角都与该图片逐像素一致。
+
 ## Abstract
 
 > **three-gift-effects** sits at the intersection of real-time rendering and live-stage game feel. It packages the「粒子从起点飞出来、聚成一个能认出来的形态」family of gift VFX as a drop-in library for any Three.js scene.
@@ -38,8 +51,7 @@
 ## 📢 News
 
 * **[2026-10-07]** 🚀 **three-gift-effects v0.1.0 正式开源**！两个可插拔礼物特效、三档粒子预算、零场景耦合。[[Live Demo](https://miracle-shen.github.io/three-gift-effects/)] [[Demo 源码](examples/basic/)]
-* **[2026-10-07]** 🔧 修掉**送礼路径导致宿主整屏全黑**的问题（UnrealBloom + MSAA composer 下）。根因经验性定位，细节见 [已修：送礼路径会让宿主整屏变黑](#已修送礼路径会让宿主整屏变黑2026-10-07)。
-* **[2026-10-07]** 📦 从星月林间 V33 抽出独立仓库，与宿主工程完全解耦。
+* **[2026-10-07]** 📦 抽出独立仓库，与原宿主工程完全解耦。
 
 ## Playable Demos
 
@@ -52,8 +64,8 @@
       </a>
       <div align="left" style="padding: 0 15px;">
         <p><b>Spec:</b> <i>"星光从四处飘来聚成一只半透明小鹿，沿台前巡行后散开。"</i></p>
-        <p><b>Intro:</b> Surface point sampling on a rigged low-poly deer. Points converge in from the whole room, hold a readable silhouette while the bones drive a walk along the stage front, then dissolve.<br/>在半透明低模鹿上采样表面点云；星光从房间各处汇聚成形，骨骼驱动沿台前巡行，最后散开。</p>
-        <p><b>How:</b> 驱动模型法 —— <code>低模鹿 + 6 根骨骼 + 表面采样点云</code>，几何在 <a href="./src/geometry.js">geometry.js</a> 里程序化生成。</p>
+        <p><b>Intro:</b> Evenly spaced particles on a continuous sculpted deer, with a warm left-hand crescent and a gently animated raised foreleg.<br/>连续体表采样的暖金粒子鹿，保持抬蹄姿态；左侧月牙光弧从人物身旁绕至鹿脚边。</p>
+        <p><b>How:</b> <code>连续隐式体表 + 6 根骨骼 + 间距约束采样</code>，几何在 <a href="./src/deer-model.js">deer-model.js</a> 生成并缓存。</p>
       </div>
       <p align="center">
         <a href="https://miracle-shen.github.io/three-gift-effects/examples/basic/?effect=deer"><b>▶&nbsp;&nbsp;Live Demo</b></a>
@@ -246,30 +258,8 @@ gifts.applySkin({ 'gift.path.core.color': [c.r, c.g, c.b] });
 
 #### Known Issues
 
-- **Draw Call 超出规格上限**（规格：守护兽 ≤2、送礼路径 ≤3）：当前实测守护兽 **3**、送礼路径 **5**。原因是每个子部件都单独一个 draw call（柔光外壳、叶片网格、两处叶片描边各自一份）。修法是把同类型部件合并成单个几何 + `role` 属性分流，但会引入顶点着色器分支（规格 3.2 建议禁用动态分支），因此留到视觉改版时一起处理。
+- **Draw Call 超出原规格上限**（原规格：守护兽 ≤2、送礼路径 ≤3）：当前守护兽 **3**（共享缓冲的粒子柔光 + 亮点 + 月牙），送礼路径 **5**。本次优先对齐参考图，未以减少绘制层数为验收目标；不能按原规格宣称达标。
 - **叶片徽章是亮描边的线稿感**，不是需求文档里那种「实心发光叶片」。想改成实心需要换材质混合方式（加性混合下任何重叠都会累加到白），属于观感决策，未动。
-- **送礼路径没有「底光光带」了**（见下）。如果宿主后期链足够稳，可以把 ribbon 加回来 —— 但请先读下面这条。
-
-#### 已修：送礼路径会让宿主整屏变黑（2026-10-07）
-
-**现象**：在星月林间 V33（`UnrealBloomPass` + `MSAA` composer）里，只要送礼路径参与绘制，宿主每一帧的输出就是**纯黑**（实测整段播放期 ~0–7.9s 全黑，只有末期消散、透明度归零后才恢复）。同一场景里另外 5 个特效（含粒子守护兽）都正常。
-
-**定位**：逐项二分（固定「一整段播放里每 0.85s 采一帧、必须帧帧正常」的判据）得到：
-
-| 改动 | 结果 |
-| --- | --- |
-| 原样 | 帧帧全黑 |
-| 隐藏 ribbon 光带 | 全部正常 |
-| 隐藏叶片网格 | 全部正常 |
-| 隐藏全部 Points（保留两个网格） | 全部正常 |
-| `renderOrder` / `toneMapped` / `depthWrite` | **无效** |
-| `uGlow` 降到 0.08 | **无效** |
-
-即：**与亮度、混合、深度状态、渲染顺序都无关，只跟透明部件的绘制总量有关** —— 减掉任意一个重量级透明部件就恢复。`renderer.render()` 手动渲染（不经过后期链）始终正常，说明问题出在「透明叠加 → UnrealBloom 的 mip 链 → 输出」这一段的宿主侧鲁棒性上，本库能做的就是把叠加量降下来。
-
-**处理**：删掉 ribbon。它在宿主的大远景里是 0.033 视空间单位的细线（<1px，肉眼不可见），在 demo 里则表现为两条突兀的白色导轨 —— 删掉它既修了黑屏，观感也更干净。删除后连续 3 次完整播放 + 粒子守护兽均全帧正常。
-
-> ⚠️ **这个修复是经验性的，机制没有完全定位**：如果你的宿主也用 UnrealBloom + MSAA composer，建议接入后跑一遍「完整播放 + 逐帧截图」的验收，而不是只看首帧。
 
 ## Project Structure
 
@@ -279,7 +269,8 @@ src/
   config.js         全部可调项（色板 / 预算 / 布局偏移）
   anchors.js        锚点解析 —— 唯一的场景耦合点
   shaders.js        全部 GLSL
-  geometry.js       程序化几何：低模鹿 / 种子点云 / 叶片 / 飞行曲线
+  geometry.js       种子点云 / 叶片 / 飞行曲线；转出守护鹿几何 API
+  deer-model.js     连续体表雕塑 / 曲线鹿角 / 间距约束表面采样
   effects/
     deer.js         CASE A 粒子守护兽（含骨骼动画）
     path.js         CASE B 一对一送礼路径

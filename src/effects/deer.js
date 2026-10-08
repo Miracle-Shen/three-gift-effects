@@ -1,4 +1,5 @@
 import * as shaders from '../shaders.js';
+import { NormalBlending } from 'three';
 import { createDeerGeometry, createSeeds, DEER_HEIGHT, DEER_PIVOTS } from '../geometry.js';
 import { GIFT_DURATIONS, GIFT_TUNING, TAU } from '../config.js';
 import { clamp, smooth } from '../util.js';
@@ -15,15 +16,15 @@ import { clamp, smooth } from '../util.js';
 function animateBones(ctx, t) {
   const { anchors, bones, root, temp, rotation, scale, axis, position } = ctx;
   const walk = smooth(t, 3.7, 7.8);
-  const stride = Math.sin(walk * TAU * 1.7) * Math.sin(walk * Math.PI);
+  const stride = Math.sin(walk * TAU) * Math.sin(walk * Math.PI);
 
   position.copy(anchors.deer);
-  position.x -= walk * .9;
-  position.z += Math.sin(walk * Math.PI) * .32;
-  position.y += Math.sin(t * 1.7) * .024;
+  position.x -= walk * .15;
+  position.z += Math.sin(walk * Math.PI) * .06;
+  position.y += Math.sin(t * 1.7) * .012;
 
   const size = anchors.height / DEER_HEIGHT;
-  rotation.setFromAxisAngle(axis, Math.PI + .12 + Math.sin(walk * Math.PI) * .20);
+  rotation.setFromAxisAngle(axis, Math.PI + Math.sin(walk * Math.PI) * .045);
   root.compose(position, rotation, scale.setScalar(size));
   bones[0].copy(root);
 
@@ -31,7 +32,7 @@ function animateBones(ctx, t) {
     const pivot = DEER_PIVOTS[i];
     const angle = i === 1
       ? Math.sin(t * 1.35) * .025
-      : stride * (i === 2 || i === 5 ? .12 : -.12);
+      : stride * (i === 2 || i === 5 ? .045 : -.045);
     bones[i].copy(root).multiply(temp.makeTranslation(...pivot));
     bones[i].multiply(temp.makeRotationZ(angle));
     bones[i].multiply(temp.makeTranslation(-pivot[0], -pivot[1], -pivot[2]));
@@ -47,14 +48,22 @@ export const DEER_EFFECT = {
   build({ group, u, conf, add }) {
     const deer = createDeerGeometry(conf.deer);
 
-    const surfaceU = { ...u, uOpacity: { value: 0 } };
-    add(deer.surface, shaders.SURFACE_VERTEX, shaders.SURFACE_FRAGMENT, 'mesh', group, surfaceU);
-    add(deer.particles, shaders.DEER_VERTEX, shaders.POINT_FRAGMENT, 'points', group, u);
+    // A low-energy splat halo replaces the visible mesh shell. Only particles
+    // contribute to the silhouette; there are no opaque or Fresnel body faces.
+    deer.surface.dispose();
+    const haloU = { ...u, uOpacity: { value: 0 }, uPointGain: { value: 2.3 } };
+    const halo = add(deer.particles, shaders.DEER_VERTEX, shaders.DEER_HALO_FRAGMENT, 'points', group, haloU);
+    halo.name = 'Gift_DeerSoftLight';
+    const points = add(deer.particles, shaders.DEER_VERTEX, shaders.DEER_FRAGMENT, 'points', group, u);
+    points.name = 'Gift_DeerSurfaceParticles';
+    points.material.blending = NormalBlending;
 
     const auraU = { ...u, uOpacity: { value: 0 } };
-    add(createSeeds(conf.aura), shaders.AURA_VERTEX, shaders.POINT_FRAGMENT, 'points', group, auraU);
+    const aura = add(createSeeds(conf.aura), shaders.AURA_VERTEX, shaders.DEER_FRAGMENT, 'points', group, auraU);
+    aura.name = 'Gift_DeerCrescent';
+    aura.material.blending = NormalBlending;
 
-    return { surfaceU, auraU, peak: conf.deer + conf.aura };
+    return { haloU, auraU, peak: conf.deer + conf.aura };
   },
 
   apply({ ctx, system, t }) {
@@ -66,7 +75,8 @@ export const DEER_EFFECT = {
     u.uForm.value = form;
     u.uOpacity.value = smooth(t, 0, .5) * fade;
     u.uDissolve.value = smooth(t, DISSOLVE_AT, system.total);
-    system.surfaceU.uOpacity.value = smooth(form, .72, 1) * fade;
+    system.haloU.uOpacity.value = smooth(form, .72, 1) * fade * .055;
+    system.haloU.uPointGain.value = GIFT_TUNING.pointGain * 2.3;
     system.auraU.uOpacity.value = smooth(t, .35, 2.4) * fade;
 
     return t < .5 ? 'summon' : form < 1 ? 'form' : t < 3.7 ? 'reveal' : t < DISSOLVE_AT ? 'guard' : 'dissolve';

@@ -4,6 +4,7 @@ import { resolveGiftAnchors } from './anchors.js';
 import { clamp, v3 } from './util.js';
 import { DEER_EFFECT } from './effects/deer.js';
 import { PATH_EFFECT } from './effects/path.js';
+import { DEER_HEIGHT } from './deer-model.js';
 
 export { GIFT_DURATIONS, GIFT_SKIN, GIFT_TIERS, GIFT_TIER_ORDER, GIFT_TUNING, GIFT_LAYOUT } from './config.js';
 export { resolveGiftAnchors } from './anchors.js';
@@ -89,6 +90,7 @@ export function createGiftEffects(scene, { coarse = false, reduced = false } = {
       uSafeHalf: { value: anchors.safeHalf },
       uBones: { value: bones },
       uRoot: { value: root },
+      uModelScale: { value: anchors.height / DEER_HEIGHT },
       uOrigin: { value: anchors.deer },
       uForm: { value: 0 },
       uDissolve: { value: 0 },

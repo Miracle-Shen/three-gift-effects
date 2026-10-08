@@ -33,6 +33,7 @@
     "three": ">=0.160.0"
   },
   "scripts": {
+    "test": "node test/smoke.mjs && node test/deer-model.mjs",
     "demo": "node scripts/serve.mjs",
     "demo:no-open": "node scripts/serve.mjs --no-open"
   },

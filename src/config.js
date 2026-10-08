@@ -20,9 +20,9 @@ export const GIFT_DURATIONS = {
  * 每个值都是线性空间的 [r,g,b]，范围 0~1。
  */
 export const GIFT_SKIN = {
-  'gift.particle.core.color': [1, 0.47, 0.065],
-  'gift.particle.highlight.color': [1, 0.91, 0.57],
-  'gift.particle.shell.color': [1, 0.67, 0.19],
+  'gift.particle.core.color': [1, 0.48, 0.16],
+  'gift.particle.highlight.color': [1, 0.82, 0.50],
+  'gift.particle.shell.color': [1, 0.59, 0.23],
   'gift.path.core.color': [1, 0.54, 0.09],
   'gift.path.ring.color': [1, 0.91, 0.55],
   'gift.badge.leaf.color': [1, 0.70, 0.21],
@@ -45,9 +45,9 @@ export const GIFT_TUNING = {
  * 数值来自需求文档 3.1 的性能红线；调整只改这里，不要改结构。
  */
 export const GIFT_TIERS = {
-  high: { deer: 14500, aura: 2600, path: 4200, burst: 1600 },
-  mid: { deer: 9000, aura: 1700, path: 2800, burst: 1000 },
-  low: { deer: 4200, aura: 850, path: 1500, burst: 500 },
+  high: { deer: 4200, aura: 2000, path: 4200, burst: 1600 },
+  mid: { deer: 3000, aura: 1400, path: 2800, burst: 1000 },
+  low: { deer: 1800, aura: 900, path: 1500, burst: 500 },
 };
 
 /** 降级顺序：high → mid → low。 */

@@ -62,8 +62,9 @@ for (const kind of ['giftDeer', 'giftPath']) {
     if (o.isMesh) meshes++;
   });
 
-  const budget = kind === 'giftDeer' ? 2 : 3;
-  console.log(`     ${kind}: 峰值 ${s.peak} 粒子 · Points×${points}(${pointVerts} 顶点) · Mesh×${meshes} · drawCalls=${s.drawCalls} (规格上限 ${budget})`);
+  const budget = kind === 'giftDeer' ? 3 : 5;
+  console.log(`     ${kind}: 峰值 ${s.peak} 粒子 · Points×${points}(${pointVerts} 提交顶点) · Mesh×${meshes} · drawCalls=${s.drawCalls}`);
+  check(`${kind} 绘制预算`, s.drawCalls === budget);
   check(`${kind} 峰值粒子 > 0`, s.peak > 0);
   check(`${kind} phase 合理`, typeof s.phase === 'string' && s.phase !== 'idle', s.phase);
   check(`${kind} 定格不推进时间`, (() => {

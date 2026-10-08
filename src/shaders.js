@@ -2,8 +2,8 @@
  * 全部 GLSL。
  *
  * 约定：
- * - 所有粒子材质都用 AdditiveBlending（Blend One One）。Three 的 AdditiveBlending
- *   等价于 blendFunc(SRC_ALPHA, ONE)，因此**颜色不要预乘 alpha**，否则会暗两遍。
+ * - 守护鹿亮点使用 NormalBlending 限制重叠亮度；柔光层、送礼路径使用
+ *   AdditiveBlending（SRC_ALPHA, ONE）。颜色均不预乘 alpha。
  * - 深度：depthTest: true / depthWrite: false —— 这是需求文档 4.1「深度穿透」的正解。
  *   严禁用 ZTest Always；那会让粒子永远压在最前面，退化成贴在屏幕上的一张图。
  * - 安全区降亮在 projectPoint() 里统一处理，两个效果共用。
@@ -36,12 +36,33 @@ export const POINT_FRAGMENT = `
 `;
 
 const BONES = `
-  uniform mat4 uBones[6];attribute float aBone;
-  mat4 boneMatrix(){int b=int(aBone+.5);mat4 m=uBones[0];for(int i=0;i<6;i++){if(i==b)m=uBones[i];}return m;}
+  uniform mat4 uBones[6];attribute float aBone,aBoneMix;
+  mat4 boneMatrix(){int b=int(aBone+.5);mat4 m=uBones[0];for(int i=0;i<6;i++){if(i==b)m=uBones[i];}return uBones[0]*(1.-aBoneMix)+m*aBoneMix;}
+`;
+
+// A round warm emitter with a broad, low-energy halo. No white cross sprites.
+// Output conversion is also needed when the host renders without an OutputPass.
+export const DEER_FRAGMENT = `
+  varying vec3 vColor;varying float vAlpha,vGlint;
+  void main(){
+    vec2 q=gl_PointCoord*2.-1.;float r2=dot(q,q);if(r2>1.)discard;
+    float core=exp(-r2*13.),halo=exp(-r2*3.4)*.13;
+    gl_FragColor=vec4(vColor,(core+halo)*vAlpha);
+    #include <colorspace_fragment>
+  }
+`;
+
+export const DEER_HALO_FRAGMENT = `
+  varying vec3 vColor;varying float vAlpha,vGlint;
+  void main(){
+    vec2 q=gl_PointCoord*2.-1.;float r2=dot(q,q);if(r2>1.)discard;
+    gl_FragColor=vec4(vColor,exp(-r2*4.5)*(1.-r2)*vAlpha);
+    #include <colorspace_fragment>
+  }
 `;
 
 export const DEER_VERTEX = COMMON + BONES + `
-  attribute vec4 aData;uniform float uForm,uDissolve,uDensity,uNoise;
+  attribute vec4 aData;uniform float uForm,uDissolve,uDensity,uNoise,uModelScale;
   uniform vec3 uOrigin;
   void main(){
     mat4 bone=boneMatrix();vec3 target=(bone*vec4(position,1.)).xyz;
@@ -54,51 +75,35 @@ export const DEER_VERTEX = COMMON + BONES + `
     p+=noise3(aData.z*613.)*uDissolve*4.+vec3(0.,uDissolve*(1.+aData.x*3.),0.);
     vec3 normalWorld=normalize(mat3(modelMatrix)*mat3(bone)*normal);
     vec3 viewDirection=normalize(cameraPosition-(modelMatrix*vec4(target,1.)).xyz);
-    float rim=pow(1.-abs(dot(normalWorld,viewDirection)),1.8);
-    float twinkle=.68+.32*sin(uTime*(2.+aData.w*4.)+aData.x*60.);
-    vGlint=step(.965,aData.w);
-    vColor=mix(uGold,uIvory,.26+aData.z*.58)*uGlow*(1.5+rim*1.3+vGlint*1.8);
-    vAlpha=uOpacity*(.42+rim*.42)*twinkle*uDensity*(1.-uDissolve);
-    projectPoint(p,mix(.055,.115,aData.y)+vGlint*.15);
+    float facing=dot(normalWorld,viewDirection),rim=pow(1.-abs(facing),3.);
+    float twinkle=.86+.14*sin(uTime*(1.2+aData.w*1.6)+aData.x*60.);
+    vGlint=step(.992,aData.w);
+    vColor=mix(uGold,uIvory,.38+aData.z*.56)*uGlow*(.93+vGlint*.07);
+    float sideLight=mix(.23,1.20,smoothstep(-.25,.15,facing));
+    vAlpha=uOpacity*(sideLight+rim*.14)*twinkle*min(uDensity,1.25)*(1.-uDissolve);
+    projectPoint(p,(mix(.067,.100,aData.y)+vGlint*.044)*uModelScale);
   }
 `;
 
-export const SURFACE_VERTEX = BONES + `
-  uniform float uTime;varying vec3 vNormal,vWorld;varying float vHeight;
-  void main(){mat4 bone=boneMatrix();vec4 p=modelMatrix*bone*vec4(position,1.);vWorld=p.xyz;vNormal=normalize(mat3(modelMatrix)*mat3(bone)*normal);vHeight=position.y;gl_Position=projectionMatrix*viewMatrix*p;}
-`;
-
-export const SURFACE_FRAGMENT = `
-  uniform vec3 uGold,uIvory;uniform float uOpacity,uGlow,uTime;
-  varying vec3 vNormal,vWorld;varying float vHeight;
-  void main(){float rim=pow(1.-abs(dot(normalize(vNormal),normalize(cameraPosition-vWorld))),2.8);
-    float wave=pow(.5+.5*sin(vHeight*27.-uTime*1.7),16.);
-    gl_FragColor=vec4(mix(uGold,uIvory,rim)*uGlow*(.7+rim),uOpacity*(.018+rim*.17+wave*.018));}
-`;
-
 export const AURA_VERTEX = COMMON + `
-  attribute vec4 aData;uniform mat4 uRoot;uniform float uDissolve;
+  attribute vec4 aData;uniform mat4 uRoot;uniform float uDissolve,uModelScale;
   void main(){
     float role=aData.x;vec3 p;float size;
-    if(role<.65){
-      float f=role/.65,angle=f*TAU*.87+.23+uTime*.075;
-      float width=pow(aData.z,3.)*.19;
-      float radius=1.65+(aData.y-.5)*width;
-      p=vec3(-.10+cos(angle)*radius,1.71+sin(angle)*radius,.39-sin(angle)*.30);
-      p+=noise3(aData.w*271.)*width;
-      vAlpha=uOpacity*(.23+.77*pow(aData.z,4.))*(.7+.3*sin(f*80.-uTime*3.));
-      size=.055+aData.w*.075;vGlint=step(.97,aData.w);
-    }else if(role<.85){
-      float a=(role-.65)/.2*TAU;float radius=1.15+(aData.y>.5?.12:0.);
-      p=vec3(cos(a)*radius,.01+sin(a*6.+uTime)*.006,sin(a)*radius*.67);
-      vAlpha=uOpacity*.30;size=.065;vGlint=0.;
+    if(role<.88){
+      float f=role/.88,angle=mix(1.22,-2.25,f);
+      float spread=.09+pow(aData.z,.8)*.48;
+      float swirl=sin(f*38.-uTime*.7+aData.y*TAU)*.018;
+      p=vec3(1.91+cos(angle)*2.45,1.94+sin(angle)*1.89,-.13+sin(angle)*.25);
+      p+=noise3(aData.w*271.)*spread+vec3(swirl,swirl*.4,0.);
+      vAlpha=uOpacity*(.47+aData.z*.48)*smoothstep(0.,.10,f)*(1.-smoothstep(.89,1.,f));
+      size=.056+aData.w*.050;vGlint=step(.988,aData.w);
     }else{
-      float a=aData.y*TAU+uTime*.16,y=mod(aData.z*3.8+uTime*.16,3.8);
-      p=vec3(cos(a)*(1.2+aData.w*.6),y,sin(a)*.9);
-      vAlpha=uOpacity*sin(y/3.8*PI)*.36;size=.07+aData.w*.18;vGlint=step(.9,aData.w);
+      float a=aData.y*TAU+uTime*.035,y=mod(aData.z*3.8+uTime*.04,3.8);
+      p=vec3(1.3+cos(a)*(1.9+aData.w*.7),y,sin(a)*.5);
+      vAlpha=uOpacity*sin(y/3.8*PI)*(.22+aData.w*.40);size=.056+aData.w*.07;vGlint=step(.97,aData.w);
     }
     p+=(noise3(aData.y*378.)+vec3(0.,1.,0.))*uDissolve*1.8;p=(uRoot*vec4(p,1.)).xyz;
-    vAlpha*=1.-uDissolve;vColor=mix(uGold,uIvory,aData.w)*uGlow*(2.+vGlint*2.);projectPoint(p,size);
+    vAlpha*=1.-uDissolve;vColor=mix(uGold,uIvory,.30+aData.w*.68)*uGlow*(.95+vGlint*.05);projectPoint(p,size*uModelScale);
   }
 `;
 

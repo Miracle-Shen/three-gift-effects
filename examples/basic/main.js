@@ -9,10 +9,11 @@ import { createGiftEffects } from '../../src/index.js';
    ───────────────────────────────────────────────────────────── */
 
 const app = document.getElementById('app');
+const viewport = () => ({ width: app.clientWidth, height: app.clientHeight });
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(viewport().width, viewport().height);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 app.appendChild(renderer.domElement);
@@ -21,11 +22,11 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0e14);
 scene.fog = new THREE.Fog(0x0a0e14, 34, 78);
 
-const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 300);
-camera.position.set(0, 6.5, 22);
+const camera = new THREE.PerspectiveCamera(38, viewport().width / viewport().height, 0.1, 300);
+camera.position.set(0, 5.1, 20);
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(1, 3.2, 1);
+controls.target.set(0, 3.8, 0);
 controls.enableDamping = true;
 controls.dampingFactor = 0.07;
 controls.maxPolarAngle = Math.PI * 0.495;
@@ -86,6 +87,7 @@ for (const s of SEATS) {
     new THREE.MeshStandardMaterial({ color: 0x27313d, roughness: 0.9 }),
   );
   seat.position.set(s.eye.x, 0.45, s.eye.z);
+  seat.userData.seat = true;
   scene.add(seat);
 }
 
@@ -125,8 +127,29 @@ const tierSel = document.getElementById('tier');
 const statsEl = document.getElementById('stats');
 const moveEl = document.getElementById('move');
 const moveVal = document.getElementById('move-val');
+const pause = document.getElementById('pause');
+const view = document.getElementById('view');
+const backdrop = document.getElementById('backdrop');
 
 let current = 'giftDeer';
+let paused = false;
+
+function frameEffect() {
+  const damping = controls.enableDamping;
+  controls.enableDamping = false;
+  controls.update();
+  const aspect = viewport().width / viewport().height;
+  const center = current === 'giftDeer' ? new THREE.Vector3(.1, 3.75, 0) : new THREE.Vector3(.5, 2.6, 6);
+  const height = current === 'giftDeer' ? 8.0 : 14;
+  const width = 12;
+  const distance = Math.max(height, width / aspect) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+  controls.target.copy(center);
+  const angle = view.value === 'side' ? .80 : 0;
+  const elevation = view.value === 'above' ? .55 : .055;
+  camera.position.copy(center).add(new THREE.Vector3(Math.sin(angle) * distance, elevation * distance, Math.cos(angle) * distance));
+  camera.lookAt(center);controls.update();
+  controls.enableDamping = damping;
+}
 
 function markButtons() {
   btnDeer.classList.toggle('on', effects.isActive('giftDeer'));
@@ -136,6 +159,8 @@ function markButtons() {
 function play(kind) {
   current = kind;
   effects.trigger(kind);
+  paused = false; pause.checked = false;
+  frameEffect();
   const duration = effects.stats.duration || 10;
   seek.max = String(Math.round(duration * 100));
   seek.value = '0';
@@ -146,14 +171,26 @@ function play(kind) {
 btnDeer.addEventListener('click', () => play('giftDeer'));
 btnPath.addEventListener('click', () => play('giftPath'));
 
-// 拖动 = 定格到任意时刻（对应验收：任意一帧都要能辨认形态）；松手继续播
+// Scrubbing holds the selected frame; the pause checkbox resumes playback.
 seek.addEventListener('input', () => {
   const t = Number(seek.value) / 100;
   effects.seek(current, t);
+  paused = true; pause.checked = true;
   seekVal.textContent = t.toFixed(1) + 's';
   markButtons();
 });
-seek.addEventListener('change', () => effects.resume());
+pause.addEventListener('change', () => {
+  paused = pause.checked;
+  if (paused) effects.seek(current, effects.stats.age);
+  else effects.resume();
+});
+view.addEventListener('change', frameEffect);
+backdrop.addEventListener('change', () => {
+  const studio = backdrop.value === 'studio';
+  stageGroup.visible = !studio;ground.visible = !studio;
+  for (const object of scene.children) if (object.userData.seat) object.visible = !studio;
+  scene.background.set(studio ? 0x17110c : 0x0a0e14);
+});
 
 tierSel.addEventListener('change', () => {
   effects.setTier(tierSel.value);
@@ -186,11 +223,13 @@ moveEl.addEventListener('input', () => {
   effects.setAnchors(makeAnchors(shift));
 });
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
+function resizeViewport() {
+  camera.aspect = viewport().width / viewport().height;
   camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
+  renderer.setSize(viewport().width, viewport().height);
+  frameEffect();
+}
+new ResizeObserver(resizeViewport).observe(app);
 
 /* ─────────────────────────────────────────────────────────────
    5. 主循环
@@ -208,6 +247,7 @@ function frame() {
   if (now - hudAt > 0.12) {
     hudAt = now;
     const s = effects.stats;
+    if (!paused) { seek.value = String(Math.round(s.age * 100)); seekVal.textContent = s.age.toFixed(1) + 's'; }
     statsEl.innerHTML =
       `tier <b>${s.tier}</b> · phase <b>${s.phase}</b> · t <b>${s.age.toFixed(1)}s</b><br>` +
       `drawCalls <b>${s.drawCalls}</b> · peak <b>${s.peak}</b> · 降级 <b>${s.downgrades}</b>`;
@@ -219,9 +259,16 @@ frame();
 
 // 便于在控制台/自动化里检查
 window.__gifts = effects;
+window.__giftDemo = { scene, camera, controls, renderer };
 
 // 深链：?effect=deer|path（也认 #deer / #path）。README 与落地页的「Live Demo」用它直接开播。
 const wanted = new URLSearchParams(location.search).get('effect')
   || location.hash.replace(/^#/, '');
 if (wanted === 'deer' || wanted === 'giftDeer') play('giftDeer');
 else if (wanted === 'path' || wanted === 'giftPath') play('giftPath');
+else play('giftDeer');
+const params = new URLSearchParams(location.search);
+if (params.has('time')) {
+  const time = Number(params.get('time'));
+  if (Number.isFinite(time)) { effects.seek(current, time);paused = true;pause.checked = true;seek.value = String(time * 100);seekVal.textContent = time.toFixed(1) + 's'; }
+}
